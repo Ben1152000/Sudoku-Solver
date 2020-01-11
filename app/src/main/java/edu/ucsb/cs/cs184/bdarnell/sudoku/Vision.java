@@ -1,10 +1,13 @@
-package edu.ucsb.cs.cs184.bdarnell.sudoku;
+package edu.ucsb.cs.cs184.bdarnell.sudoku;b
+
+import org.opencv.core.Mat;
 
 public class Vision {
 
     public static void analyzeImage() {
         System.out.println("Hello, world;");
         // Load the image into array type
+        Mat image_matrix = imread("test.jpg", 0);
         // Perform
     }
 
