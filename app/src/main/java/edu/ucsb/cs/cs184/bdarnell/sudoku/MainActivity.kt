@@ -87,7 +87,7 @@ class MainActivity : AppCompatActivity() {
         if (hasNoPermissions()) {
             requestPermission()
         } else {
-            fotoapparat?.takePicture()?.saveToFile(destination)
+            //fotoapparat?.takePicture()?.saveToFile(destination)
             Vision.analyzeImage()
         }
     }
