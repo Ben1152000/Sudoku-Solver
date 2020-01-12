@@ -27,9 +27,12 @@ import static org.opencv.imgproc.Imgproc.drawContours;
 import static org.opencv.imgproc.Imgproc.erode;
 import static org.opencv.imgproc.Imgproc.findContours;
 import static org.opencv.imgproc.Imgproc.floodFill;
+import static org.opencv.imgproc.Imgproc.getPerspectiveTransform;
 import static org.opencv.imgproc.Imgproc.getStructuringElement;
+import static org.opencv.imgproc.Imgproc.warpPerspective;
 
 import org.opencv.core.MatOfPoint;
+import org.opencv.core.MatOfPoint2f;
 import org.opencv.core.Point;
 import org.opencv.core.Rect;
 import org.opencv.core.Scalar;
@@ -56,7 +59,9 @@ public class Vision {
         Mat outerBox = preprocess(image_matrix);
         saveImage(outerBox, "out2.png");
         List<Point> box = findBox(outerBox);
-        System.out.println("box: " + box);
+        outerBox = deskew(outerBox, box);
+        saveImage(outerBox, "out4.png");
+        parsePuzzle(outerBox);
         // Perform
     }
 
@@ -92,14 +97,13 @@ public class Vision {
             bitmap.compress(Bitmap.CompressFormat.PNG, 100, out);
         } catch (Exception e){}
     }
+
     /**
      * Input: image in array form
      * @param image
      * @return array of boundary coordinates, or null if no box
      */
     private static List<Point> findBox(Mat image) {
-        saveImage(image, "out3.png");
-
         // Find contours of the image:
         List<MatOfPoint> contours = new ArrayList<MatOfPoint>();
         Imgproc.findContours(image, contours, new Mat(), Imgproc.RETR_LIST,Imgproc.CHAIN_APPROX_SIMPLE);
@@ -240,7 +244,7 @@ public class Vision {
         circle(overlay, top2, 50, new Scalar(255, 0, 0), 20);
         circle(overlay, bottom1, 50, new Scalar(255, 0, 0), 20);
         circle(overlay, bottom2, 50, new Scalar(255, 0, 0), 20);
-        saveImage(overlay, "out4.png");
+        saveImage(overlay, "out3.png");
 
         return new ArrayList<Point>(Arrays.asList(topLeft, topRight, bottomLeft, bottomRight));
 
@@ -310,13 +314,31 @@ public class Vision {
         );
     }
 
-    /**
-     * Do OCR on the image
-     * @param image
-     * @param boundaries
-     * @return
-     */
-    private int[][] parsePuzzle(Object image, int[] boundaries) {
+    private static Mat deskew(Mat image, List<Point> bounds) {
+        MatOfPoint2f source = new MatOfPoint2f(
+                bounds.get(0), bounds.get(1), bounds.get(2), bounds.get(3)
+        );
+        System.out.println(bounds);
+        double size = Math.abs(bounds.get(2).x - bounds.get(1).x);
+        MatOfPoint2f target = new MatOfPoint2f(
+                new Point(0, 0), new Point(size, 0), new Point(0, size), new Point(size, size)
+        );
+        System.out.println(size);
+        Mat transform = getPerspectiveTransform(source, target);
+        Mat newImage = new Mat();
+        warpPerspective(image, newImage, transform, new Size(size, size));
+        return newImage;
+    }
+
+    private static int[][] parsePuzzle(Mat image) {
+        for (int i = 0; i < 9; i++) {
+            for (int j = 0; j < 9; j++) {
+                Mat sector = new Mat(image,
+                        new Rect(i * (image.width() / 9), j * (image.height() / 9), (image.width() / 9), (image.height() / 9))
+                );
+                
+            }
+        }
         return null;
     }
 
