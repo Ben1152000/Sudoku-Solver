@@ -14,7 +14,17 @@ import io.fotoapparat.parameter.ScaleType
 import io.fotoapparat.selector.back
 import io.fotoapparat.view.CameraView
 import kotlinx.android.synthetic.main.activity_main.*
+import org.opencv.android.OpenCVLoader
 import java.io.File
+import org.opencv.android.LoaderCallbackInterface
+import androidx.core.app.ComponentActivity
+import androidx.core.app.ComponentActivity.ExtraData
+import androidx.core.content.ContextCompat.getSystemService
+import android.icu.lang.UCharacter.GraphemeClusterBreak.T
+import android.util.Log
+import androidx.fragment.app.FragmentActivity
+import org.opencv.android.BaseLoaderCallback
+
 
 class MainActivity : AppCompatActivity() {
 
@@ -37,7 +47,22 @@ class MainActivity : AppCompatActivity() {
                 println("Recorder errors: $error")
             }
         )
+        OpenCVLoader.initDebug()
+        /*
+        OpenCVLoader.initAsync(OpenCVLoader.OPENCV_VERSION_3_4_0, this, object: BaseLoaderCallback(this){
+            override fun onManagerConnected(status: Int) {
+                when (status) {
+                    LoaderCallbackInterface.SUCCESS -> {
+                        Log.d("hello", "loaded successfully")
+                    }
+                    else -> {
+                        super.onManagerConnected(status)
 
+                    }
+                }
+            }
+        })
+         */
     }
 
     override fun onStop() {
