@@ -47,22 +47,8 @@ class MainActivity : AppCompatActivity() {
                 println("Recorder errors: $error")
             }
         )
-        OpenCVLoader.initDebug()
-        /*
-        OpenCVLoader.initAsync(OpenCVLoader.OPENCV_VERSION_3_4_0, this, object: BaseLoaderCallback(this){
-            override fun onManagerConnected(status: Int) {
-                when (status) {
-                    LoaderCallbackInterface.SUCCESS -> {
-                        Log.d("hello", "loaded successfully")
-                    }
-                    else -> {
-                        super.onManagerConnected(status)
 
-                    }
-                }
-            }
-        })
-         */
+        OpenCVLoader.initDebug()
     }
 
     override fun onStop() {
@@ -82,13 +68,23 @@ class MainActivity : AppCompatActivity() {
     val filename = "sudoku.png"
     val storageDirectory = Environment.getExternalStorageDirectory()
     val destination = File(storageDirectory, filename)
+    var switch = false;
 
     private fun takePhoto() {
         if (hasNoPermissions()) {
             requestPermission()
         } else {
-            //fotoapparat?.takePicture()?.saveToFile(destination)
+            /*if (switch) {
+                Vision.analyzeImage()
+                val dialog = SolutionDialog()
+                dialog.show(supportFragmentManager, "SolutionDialog")
+            } else {
+                fotoapparat?.takePicture()?.saveToFile(destination)
+                switch = true;
+            }*/
             Vision.analyzeImage()
+            val dialog = SolutionDialog()
+            dialog.show(supportFragmentManager, "SolutionDialog")
         }
     }
 

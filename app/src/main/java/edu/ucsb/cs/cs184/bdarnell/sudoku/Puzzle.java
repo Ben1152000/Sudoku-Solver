@@ -23,6 +23,10 @@ public class Puzzle {
 
     }
 
+    public int[][] getGrid() {
+        return grid;
+    }
+
     /**
      * @return number filled in the grid
      */

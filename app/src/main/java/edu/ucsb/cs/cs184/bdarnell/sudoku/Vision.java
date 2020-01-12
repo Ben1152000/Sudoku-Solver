@@ -4,24 +4,23 @@ import android.graphics.Bitmap;
 import android.os.Environment;
 
 import org.opencv.android.Utils;
-import org.opencv.core.CvType;
+import org.opencv.core.Core;
 import org.opencv.core.Mat;
 
+import static org.opencv.core.Core.absdiff;
 import static org.opencv.core.Core.bitwise_not;
 import static org.opencv.core.Core.compare;
+import static org.opencv.core.Core.subtract;
 import static org.opencv.core.CvType.CV_8UC1;
-import static org.opencv.imgcodecs.Imgcodecs.IMREAD_COLOR;
 import static org.opencv.imgcodecs.Imgcodecs.imread;
 import static org.opencv.imgproc.Imgproc.ADAPTIVE_THRESH_MEAN_C;
-import static org.opencv.imgproc.Imgproc.CHAIN_APPROX_SIMPLE;
 import static org.opencv.imgproc.Imgproc.GaussianBlur;
 import static org.opencv.imgproc.Imgproc.HoughLines;
 import static org.opencv.imgproc.Imgproc.MORPH_CROSS;
-import static org.opencv.imgproc.Imgproc.RETR_EXTERNAL;
 import static org.opencv.imgproc.Imgproc.THRESH_BINARY;
 import static org.opencv.imgproc.Imgproc.adaptiveThreshold;
-import static org.opencv.imgproc.Imgproc.boundingRect;
 import static org.opencv.imgproc.Imgproc.circle;
+import static org.opencv.imgproc.Imgproc.connectedComponentsWithStats;
 import static org.opencv.imgproc.Imgproc.dilate;
 import static org.opencv.imgproc.Imgproc.drawContours;
 import static org.opencv.imgproc.Imgproc.erode;
@@ -29,7 +28,9 @@ import static org.opencv.imgproc.Imgproc.findContours;
 import static org.opencv.imgproc.Imgproc.floodFill;
 import static org.opencv.imgproc.Imgproc.getPerspectiveTransform;
 import static org.opencv.imgproc.Imgproc.getStructuringElement;
+import static org.opencv.imgproc.Imgproc.line;
 import static org.opencv.imgproc.Imgproc.warpPerspective;
+import static org.opencv.photo.Photo.fastNlMeansDenoisingMulti;
 
 import org.opencv.core.MatOfPoint;
 import org.opencv.core.MatOfPoint2f;
@@ -50,22 +51,20 @@ import java.util.List;
 public class Vision {
 
     public static void analyzeImage() {
-        System.out.println("Hello, world;");
         // Load the image in gray scale
-        Mat image_matrix = imread(Environment.getExternalStorageDirectory() + "/sudoku.png", 0);
-        System.out.println(image_matrix.size());
-        // create blank image of the same size
-        saveImage(image_matrix, "out1.png");
-        Mat outerBox = preprocess(image_matrix);
-        saveImage(outerBox, "out2.png");
-        List<Point> box = findBox(outerBox);
-        outerBox = deskew(outerBox, box);
-        saveImage(outerBox, "out4.png");
-        parsePuzzle(outerBox);
-        // Perform
+        Mat image = imread(Environment.getExternalStorageDirectory() + "/sudoku.png", 0);
+        saveImage(image, "out1.png");
+        image = preProcess(image);
+        saveImage(image, "out2.png");
+        List<Point> box = findBox(image);
+        image = deSkew(image, box);
+        saveImage(image, "out4.png");
+        image = parsePuzzle(image);
+        bitwise_not(image, image);
+        saveImage(image, "solution.png");
     }
 
-    private static Mat preprocess(Mat image) {
+    private static Mat preProcess(Mat image) {
         Mat outerBox = new Mat(image.size(), CV_8UC1);
 
         // smooth out noise
@@ -314,7 +313,7 @@ public class Vision {
         );
     }
 
-    private static Mat deskew(Mat image, List<Point> bounds) {
+    private static Mat deSkew(Mat image, List<Point> bounds) {
         MatOfPoint2f source = new MatOfPoint2f(
                 bounds.get(0), bounds.get(1), bounds.get(2), bounds.get(3)
         );
@@ -330,18 +329,137 @@ public class Vision {
         return newImage;
     }
 
-    private static int[][] parsePuzzle(Mat image) {
+    private static Mat parsePuzzle(Mat image) {
+        int size = image.width() / 9;
+        Mat representatives[] = new Mat[9];
+        Mat repSectors[] = new Mat[9];
+        int puzzle[][] = new int[9][9];
         for (int i = 0; i < 9; i++) {
             for (int j = 0; j < 9; j++) {
+                // Create sector:
                 Mat sector = new Mat(image,
-                        new Rect(i * (image.width() / 9), j * (image.height() / 9), (image.width() / 9), (image.height() / 9))
+                        new Rect(i * size, j * size, size, size)
                 );
-                
+
+                Mat cropped = cropToNumeral(sector, size);
+
+                if(cropped == null) {
+                    puzzle[j][i] = 0;
+                } else {
+                    for (int r = 0; r < representatives.length; r++) {
+                        if (representatives[r] == null) {
+                            representatives[r] = cropped;
+                            repSectors[r] = sector;
+                            puzzle[j][i] = r + 1;
+                            break;
+                        } else if (compareImage(representatives[r], cropped, (i == 1 && j == 2 && r == 0))) {
+                            puzzle[j][i] = r + 1;
+                            break;
+                        }
+                    }
+                }
+
+                // Display all boxes
+                if (cropped != null) {
+                    saveImage(cropped, "sector_" + i + "_" + j + ".png");
+                } else {
+                    saveImage(sector, "sector_" + i + "_" + j + ".png");
+                }
+
             }
         }
-        return null;
+
+        int[][] solution = solve(puzzle);
+
+        for (int i = 0; i < 9; i++) {
+            for (int j = 0; j < 9; j++) {
+                if (puzzle[j][i] == 0) {
+                    Mat overlay = repSectors[solution[j][i] - 1];
+                    overlay.copyTo(image.submat(new Rect(i * size, j * size, size, size)));
+                }
+            }
+        }
+
+        line(image, new Point(0, 0), new Point(image.width(), 0),
+                new Scalar(255, 255, 255), 20);
+        line(image, new Point(0, 3 * size), new Point(image.width(), 3 * size),
+                new Scalar(255, 255, 255), 20);
+        line(image, new Point(0, 6 * size), new Point(image.width(), 6 * size),
+                new Scalar(255, 255, 255), 20);
+        line(image, new Point(0, image.width()), new Point(image.width(), image.width()),
+                new Scalar(255, 255, 255), 20);
+        line(image, new Point(0, 0), new Point(0, image.width()),
+                new Scalar(255, 255, 255), 20);
+        line(image, new Point(3 * size, 0), new Point(3 * size, image.width()),
+                new Scalar(255, 255, 255), 20);
+        line(image, new Point(6 * size, 0), new Point(6 * size, image.width()),
+                new Scalar(255, 255, 255), 20);
+        line(image, new Point(image.width(), 0), new Point(image.width(), image.width()),
+                new Scalar(255, 255, 255), 20);
+
+        return image;
     }
 
+    private static int[][] solve(int[][] grid) {
+        Puzzle puzzle = new Puzzle(grid.clone());
+        puzzle.display();
+        try {
+            puzzle.solve();
+        } catch (InvalidPuzzleException exception) {
+            System.out.println("You screwed up big time");
+        }
+        System.out.println();
+        puzzle.display();
+        return puzzle.getGrid();
+    }
+
+    private static Mat cropToNumeral(Mat sector, int size) {
+        // Find contours
+        List<MatOfPoint> contours = new ArrayList<>();
+        Imgproc.findContours(sector, contours, new Mat(), Imgproc.RETR_LIST, Imgproc.CHAIN_APPROX_SIMPLE);
+
+        // Remove small contours
+        MatOfPoint numeral = null;
+        double area = 0;
+        for (MatOfPoint contour : contours) {
+            if (Imgproc.contourArea(contour) > (size * size) / 100.0) {
+                Rect rect = Imgproc.boundingRect(contour);
+                if (rect.height < size * 0.8 && rect.width < size * 0.8 && rect.height > size * 0.3) {
+                    if (rect.width * rect.height > area) {
+                        numeral = contour;
+                        area = rect.width * rect.height;
+                    }
+                }
+            }
+        }
+
+        if (numeral != null) {
+            return new Mat(sector, Imgproc.boundingRect(numeral));
+        } else {
+            return null;
+        }
+    }
+
+    private static boolean compareImage(Mat source, Mat target, boolean save) {
+        Rect frame = new Rect(0, 0,
+                Math.min(source.width(), target.width()),
+                Math.min(source.height(), target.height())
+        );
+        Mat newSource = new Mat(source, frame);
+        Mat newTarget = new Mat(target, frame);
+        Mat result = new Mat(frame.size(), CV_8UC1);
+        absdiff(newSource, newTarget, result);
+        Mat kernel = getStructuringElement(MORPH_CROSS, new Size(3,3));
+        erode(result, result, kernel);
+        Scalar mean = Core.mean(result);
+        System.out.println(mean);
+        if (save) {
+            saveImage(newSource, "out5-0.png");
+            saveImage(newTarget, "out5-1.png");
+            saveImage(result, "out5.png");
+        }
+        return mean.val[0] < 8;
+    }
 
 
 }
