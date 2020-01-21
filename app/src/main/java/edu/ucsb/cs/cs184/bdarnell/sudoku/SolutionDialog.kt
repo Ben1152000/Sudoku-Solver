@@ -14,14 +14,10 @@ import kotlinx.android.synthetic.main.image_dialog.view.*
 import java.io.File
 
 
-class SolutionDialog() : DialogFragment() {
+class SolutionDialog(val destination: File) : DialogFragment() {
 
     override fun onCreateView(inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?): View {
         val root = inflater.inflate(R.layout.image_dialog, container, false)
-
-        val filename = "solution.png"
-        val storageDirectory = Environment.getExternalStorageDirectory()
-        val destination = File(storageDirectory, filename)
 
         val options = BitmapFactory.Options()
         options.inPreferredConfig = Bitmap.Config.ARGB_8888

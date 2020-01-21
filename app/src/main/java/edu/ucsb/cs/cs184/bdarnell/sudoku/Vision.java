@@ -2,6 +2,7 @@ package edu.ucsb.cs.cs184.bdarnell.sudoku;
 
 import android.graphics.Bitmap;
 import android.os.Environment;
+import android.util.Log;
 
 import org.opencv.android.Utils;
 import org.opencv.core.Core;
@@ -50,51 +51,62 @@ import java.util.List;
 
 public class Vision {
 
-    public static void analyzeImage() {
+    public static void analyzeImage(File directory) {
         // Load the image in gray scale
-        Mat image = imread(Environment.getExternalStorageDirectory() + "/sudoku.png", 0);
-        saveImage(image, "out1.png");
+        Mat image = imread(directory.getAbsolutePath() + "/sudoku.png", 0);
+        saveImageDebug(image, "out1.png");
         image = preProcess(image);
-        saveImage(image, "out2.png");
+        saveImageDebug(image, "out2.png");
+        // Look into this: https://stackoverflow.com/questions/10196198/how-to-remove-convexity-defects-in-a-sudoku-square/10226971#10226971
         List<Point> box = findBox(image);
         image = deSkew(image, box);
-        saveImage(image, "out4.png");
+        saveImageDebug(image, "out4.png");
         image = parsePuzzle(image);
         bitwise_not(image, image);
-        saveImage(image, "solution.png");
+        saveImage(image, directory, "solution.png");
     }
 
     private static Mat preProcess(Mat image) {
-        Mat outerBox = new Mat(image.size(), CV_8UC1);
+        Mat newImage = new Mat(image.size(), CV_8UC1);
 
-        // smooth out noise
-        GaussianBlur(image, image, new Size(9,9), 0);
-        // keep things illumination independent
-        adaptiveThreshold(image, outerBox, 255, ADAPTIVE_THRESH_MEAN_C, THRESH_BINARY, 5, 2);
-        bitwise_not(outerBox, outerBox);
+        GaussianBlur(image, image, new Size(9,9), 0); // smooth out noise
+        adaptiveThreshold(image, newImage,
+                255, ADAPTIVE_THRESH_MEAN_C, THRESH_BINARY, 5, 2
+        ); // keep things illumination independent
+        bitwise_not(newImage, newImage);
 
-        int filter[] = {0, 1, 0, 1, 1, 1, 0, 1, 0};
-        //Mat kernel = new Mat(3, 3, CvType.CV_8U);
-        //kernel.put(0, 0, filter);
         Mat kernel = getStructuringElement(MORPH_CROSS, new Size(3,3));
+        erode(newImage, newImage, kernel);
+        dilate(newImage, newImage, kernel);
 
-        erode(outerBox, outerBox, kernel);
-        dilate(outerBox, outerBox, kernel);
-
-        return outerBox;
+        return newImage;
     }
 
-    private static void saveImage(Mat image, String filename) {
+    private static void saveImageDebug(Mat image, String filename) {
 
         Bitmap bitmap = Bitmap.createBitmap(image.cols(), image.rows(), Bitmap.Config.ARGB_8888);
         Utils.matToBitmap(image, bitmap);
-        //image.release();
         File destination = new File(Environment.getExternalStorageDirectory(), filename);
         FileOutputStream out;
         try {
             out = new FileOutputStream(destination);
             bitmap.compress(Bitmap.CompressFormat.PNG, 100, out);
         } catch (Exception e){}
+    }
+
+    private static void saveImage(Mat image, File directory, String filename) {
+
+        Bitmap bitmap = Bitmap.createBitmap(image.cols(), image.rows(), Bitmap.Config.ARGB_8888);
+        Utils.matToBitmap(image, bitmap);
+        File destination = new File(directory, filename);
+        FileOutputStream out;
+        try {
+            out = new FileOutputStream(destination);
+            bitmap.compress(Bitmap.CompressFormat.PNG, 100, out);
+            Log.d("WRITE", "write successful @ " + destination.toString());
+        } catch (Exception e){
+            Log.d("WRITE", "write exception");
+        }
     }
 
     /**
@@ -134,6 +146,13 @@ public class Vision {
             }
         }
         boxes = newBoxes;
+
+        /*Mat overlay1 = image.clone();
+        for (int i = 0; i < boxes.size(); i++) {
+            Rect rect = Imgproc.boundingRect(boxes.get(i));
+            drawContours(overlay1, boxes, i, new Scalar(255, 0, 0), 20);
+        }
+        saveImageDebug(overlay1, "out3-1.png");*/
 
         // Sort boxes by diagonal:
         Comparator<MatOfPoint> compareDiagonally = new Comparator<MatOfPoint>() {
@@ -235,15 +254,16 @@ public class Vision {
         circle(overlay, bottomLeft, 80, new Scalar(255, 0, 0), 20);
         circle(overlay, bottomRight, 80, new Scalar(255, 0, 0), 20);
 
-        circle(overlay, left1, 50, new Scalar(255, 0, 0), 20);
-        circle(overlay, left2, 50, new Scalar(255, 0, 0), 20);
+        circle(overlay, left1, 50, new Scalar(100, 0, 0), 50);
+        circle(overlay, left2, 50, new Scalar(100, 0, 0), 50);
         circle(overlay, right1, 50, new Scalar(255, 0, 0), 20);
         circle(overlay, right2, 50, new Scalar(255, 0, 0), 20);
         circle(overlay, top1, 50, new Scalar(255, 0, 0), 20);
         circle(overlay, top2, 50, new Scalar(255, 0, 0), 20);
         circle(overlay, bottom1, 50, new Scalar(255, 0, 0), 20);
         circle(overlay, bottom2, 50, new Scalar(255, 0, 0), 20);
-        saveImage(overlay, "out3.png");
+
+        saveImageDebug(overlay, "out3.png");
 
         return new ArrayList<Point>(Arrays.asList(topLeft, topRight, bottomLeft, bottomRight));
 
@@ -299,7 +319,7 @@ public class Vision {
             drawContours(grid_overlay, boxes, i, new Scalar(255, 0, 0), 20);
             //System.out.println(rect.height + ":" + rect.width + ", " + area + " " + rect.height * rect.width + " " + rect.x + "x" + rect.y);
         }
-        saveImage(grid_overlay, "out5.png");
+        saveImageDebug(grid_overlay, "out5.png");
 
          */
     }
@@ -326,6 +346,9 @@ public class Vision {
         Mat transform = getPerspectiveTransform(source, target);
         Mat newImage = new Mat();
         warpPerspective(image, newImage, transform, new Size(size, size));
+        source.release();
+        target.release();
+        image.release();
         return newImage;
     }
 
@@ -352,7 +375,7 @@ public class Vision {
                             repSectors[r] = sector;
                             puzzle[j][i] = r + 1;
                             break;
-                        } else if (compareImage(representatives[r], cropped, (i == 1 && j == 2 && r == 0))) {
+                        } else if (compareImage(representatives[r], cropped)) {
                             puzzle[j][i] = r + 1;
                             break;
                         }
@@ -361,9 +384,9 @@ public class Vision {
 
                 // Display all boxes
                 if (cropped != null) {
-                    saveImage(cropped, "sector_" + i + "_" + j + ".png");
+                    //saveImageDebug(cropped, "sector_" + i + "_" + j + ".png");
                 } else {
-                    saveImage(sector, "sector_" + i + "_" + j + ".png");
+                    //saveImageDebug(sector, "sector_" + i + "_" + j + ".png");
                 }
 
             }
@@ -402,6 +425,7 @@ public class Vision {
 
     private static int[][] solve(int[][] grid) {
         Puzzle puzzle = new Puzzle(grid.clone());
+        System.out.println();
         puzzle.display();
         try {
             puzzle.solve();
@@ -440,25 +464,28 @@ public class Vision {
         }
     }
 
-    private static boolean compareImage(Mat source, Mat target, boolean save) {
+    private static boolean compareImage(Mat source, Mat target) {
         Rect frame = new Rect(0, 0,
                 Math.min(source.width(), target.width()),
                 Math.min(source.height(), target.height())
         );
-        Mat newSource = new Mat(source, frame);
-        Mat newTarget = new Mat(target, frame);
+        Mat newSource = new Mat(source.clone(), frame);
+        Mat newTarget = new Mat(target.clone(), frame);
+
+        Mat kernel = getStructuringElement(MORPH_CROSS, new Size(3,3));
+        dilate(newSource, newSource, kernel);
+        dilate(newTarget, newTarget, kernel);
+
         Mat result = new Mat(frame.size(), CV_8UC1);
         absdiff(newSource, newTarget, result);
-        Mat kernel = getStructuringElement(MORPH_CROSS, new Size(3,3));
+
         erode(result, result, kernel);
         Scalar mean = Core.mean(result);
         System.out.println(mean);
-        if (save) {
-            saveImage(newSource, "out5-0.png");
-            saveImage(newTarget, "out5-1.png");
-            saveImage(result, "out5.png");
-        }
-        return mean.val[0] < 8;
+        newSource.release();
+        newTarget.release();
+        result.release();
+        return mean.val[0] < 12;//8;
     }
 
 

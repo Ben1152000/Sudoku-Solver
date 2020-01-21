@@ -22,6 +22,7 @@ import androidx.core.app.ComponentActivity.ExtraData
 import androidx.core.content.ContextCompat.getSystemService
 import android.icu.lang.UCharacter.GraphemeClusterBreak.T
 import android.util.Log
+import android.widget.Toast
 import androidx.fragment.app.FragmentActivity
 import org.opencv.android.BaseLoaderCallback
 
@@ -49,6 +50,8 @@ class MainActivity : AppCompatActivity() {
         )
 
         OpenCVLoader.initDebug()
+
+        destination = applicationContext.filesDir
     }
 
     override fun onStop() {
@@ -65,26 +68,29 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    val filename = "sudoku.png"
-    val storageDirectory = Environment.getExternalStorageDirectory()
-    val destination = File(storageDirectory, filename)
-    var switch = false;
+    //val storageDirectory = Environment.getExternalStorageDirectory()
+    //val destination = File(storageDirectory, filename)
+    private lateinit var destination: File
+    var switch = false // actually false
 
     private fun takePhoto() {
         if (hasNoPermissions()) {
             requestPermission()
         } else {
-            /*if (switch) {
-                Vision.analyzeImage()
-                val dialog = SolutionDialog()
+            if (switch) {
+                Vision.analyzeImage(destination)
+                val dialog = SolutionDialog(File(destination, "solution.png"))
                 dialog.show(supportFragmentManager, "SolutionDialog")
+                switch = false;
             } else {
-                fotoapparat?.takePicture()?.saveToFile(destination)
+                fotoapparat?.takePicture()?.saveToFile(
+                    File(destination, "sudoku.png")
+                )
                 switch = true;
-            }*/
-            Vision.analyzeImage()
+            }
+            /*Vision.analyzeImage()
             val dialog = SolutionDialog()
-            dialog.show(supportFragmentManager, "SolutionDialog")
+            dialog.show(supportFragmentManager, "SolutionDialog")*/
         }
     }
 
